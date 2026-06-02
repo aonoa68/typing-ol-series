@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>タイピングできないOL ── 寸劇タイピング道場</title>
+<style>
+  /* ───────────────────────────────────────────────────────────
+     見た目はここ（CONFIG的なゾーン）。色を変えるだけで雰囲気が変わります。
+     ─────────────────────────────────────────────────────────── */
+  :root{
+    --bg:#fdf6f0; --paper:#ffffff; --ink:#3a3a3a; --sub:#8a8a8a;
+    --me:#ff8fab; --me-bg:#ffe6ee; --ai:#5fb0ff; --ai-bg:#e6f1ff;
+    --ok:#36c08a; --warn:#ff5d5d; --cur:#ffd23f; --line:#ece3da;
+    --shadow:0 4px 14px rgba(0,0,0,.08);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
+    background:radial-gradient(1200px 600px at 50% -10%,#fff,transparent),var(--bg);
+    color:var(--ink); display:flex; flex-direction:column; min-height:100vh;
+  }
+  header{
+    padding:14px 18px; text-align:center; border-bottom:1px dashed var(--line);
+    background:var(--paper); box-shadow:var(--shadow); position:relative;
+  }
+  #menuBtn{
+    position:absolute; top:50%; right:14px; transform:translateY(-50%);
+    border:1px solid var(--line); background:#fff; color:var(--ink);
+    border-radius:999px; padding:7px 14px; font-size:13px; font-weight:700; cursor:pointer;
+  }
+  #menuBtn:hover{background:#f6f1ea}
+  header h1{margin:0;font-size:18px;letter-spacing:.04em}
+  header .ep{margin-top:4px;font-size:12px;color:var(--sub)}
+  main{flex:1;max-width:680px;width:100%;margin:0 auto;padding:16px 14px 0;display:flex;flex-direction:column}
+  /* 台本（チャット）エリア */
+  #stage{flex:1;overflow-y:auto;padding:6px 2px 12px;display:flex;flex-direction:column;gap:12px}
+  .row{display:flex;gap:8px;align-items:flex-end;animation:pop .25s ease}
+  .row.me{flex-direction:row-reverse}
+  .avatar{font-size:26px;width:38px;height:38px;flex:0 0 38px;display:grid;place-items:center;
+          background:var(--paper);border-radius:50%;box-shadow:var(--shadow)}
+  .bubble{max-width:78%;padding:10px 14px;border-radius:16px;line-height:1.6;box-shadow:var(--shadow);
+          font-size:15px;white-space:pre-wrap;word-break:break-word}
+  .me .bubble{background:var(--me-bg);border-bottom-right-radius:4px}
+  .ai .bubble{background:var(--ai-bg);border-bottom-left-radius:4px}
+  .name{font-size:11px;color:var(--sub);margin:0 6px 2px}
+  .narration{align-self:center;color:var(--sub);font-size:13px;font-style:italic;
+             background:#fffdf8;border:1px dashed var(--line);padding:6px 14px;border-radius:20px}
+  @keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  /* 操作バー（つぎへ） */
+  #advance{display:none;margin:10px auto 16px;padding:10px 22px;border:none;border-radius:999px;
+           background:var(--ai);color:#fff;font-size:15px;font-weight:700;cursor:pointer;box-shadow:var(--shadow)}
+  #advance:hover{filter:brightness(1.05)}
+
+  /* タイピングパネル */
+  #typer{display:none;position:sticky;bottom:0;background:var(--paper);
+         border:1px solid var(--line);border-radius:18px 18px 0 0;box-shadow:0 -6px 20px rgba(0,0,0,.08);
+         padding:14px 16px 16px;margin-top:auto}
+  #typer .display{font-size:18px;font-weight:700;text-align:center;margin-bottom:6px}
+  #note{display:none;font-size:14px;color:#5b6b39;text-align:center;
+        background:#f3f7e6;border:1px solid #d7e3b6;border-radius:10px;
+        padding:8px 12px;margin:4px auto 12px;max-width:92%;line-height:1.5}
+  #note::before{content:"💬 意味：";font-weight:700;color:#7a8a4a}
+  #kana{font-size:26px;text-align:center;letter-spacing:.02em;line-height:1.7;margin-bottom:6px}
+  #kana .u{padding:0 1px;border-radius:6px}
+  #kana .done{color:var(--ok)}
+  #kana .cur{background:var(--cur);box-shadow:0 0 0 3px rgba(255,210,63,.4);border-radius:6px}
+  #kana .todo{color:#c9c0b6}
+  /* スペースのマスは「打つキーがある」と分かるよう下線で可視化 */
+  #kana .space{display:inline-block;min-width:1.1em;border-bottom:3px solid #c9c0b6;color:#c9c0b6;line-height:1.1}
+  #kana .space.done{border-bottom-color:var(--ok);color:var(--ok)}
+  #kana .space.cur{border-bottom-color:#e0a800;color:#9a7400}
+  #roma{font-size:14px;color:var(--sub);text-align:center;min-height:20px;letter-spacing:.06em}
+  #roma b{color:var(--ink);background:#fff7d6;padding:0 4px;border-radius:5px}
+  .stats{display:flex;justify-content:center;gap:18px;margin-top:10px;font-size:13px;color:var(--sub)}
+  .stats b{color:var(--ink);font-size:16px}
+  #typer.shake{animation:shake .18s}
+  @keyframes shake{0%,100%{transform:none}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+  .hint{text-align:center;font-size:12px;color:var(--sub);margin-top:8px}
+  #catcher{position:absolute;opacity:0;height:1px;width:1px;pointer-events:none}
+
+  /* ショートカット練習パネル */
+  #shortcut{display:none;position:sticky;bottom:0;background:var(--paper);border:1px solid var(--line);
+            border-radius:18px 18px 0 0;box-shadow:0 -6px 20px rgba(0,0,0,.08);padding:18px 16px 20px;margin-top:auto;text-align:center}
+  #shortcut .sc-goal{font-size:16px;font-weight:700;margin-bottom:12px}
+  #shortcut .sc-combo{display:inline-block;font-size:24px;font-weight:800;letter-spacing:.04em;
+            background:#eef4ff;border:2px solid var(--ai);color:#2b6fd6;border-radius:12px;padding:10px 22px;box-shadow:var(--shadow)}
+  #shortcut .sc-prompt{font-size:13px;color:var(--sub);margin-top:10px}
+  #shortcut.shake{animation:shake .18s}
+
+  /* リザルト */
+  #result{display:none;text-align:center;padding:24px 16px}
+  #result h2{margin:.2em 0}
+  .cards{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:16px 0}
+  .card{background:var(--paper);border-radius:16px;box-shadow:var(--shadow);padding:14px 20px;min-width:120px}
+  .card .v{font-size:30px;font-weight:800}
+  .card .l{font-size:12px;color:var(--sub)}
+  .btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:8px}
+  .btns button{border:none;border-radius:999px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:var(--shadow)}
+  .btns .primary{background:var(--me);color:#fff}
+  .btns .ghost{background:#fff;color:var(--ink)}
+  footer{text-align:center;font-size:11px;color:var(--sub);padding:10px}
+  .badge{display:inline-block;background:var(--me-bg);color:#c2407a;border-radius:999px;padding:2px 10px;font-size:12px;margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>⌨️ タイピングできないOL ── 寸劇タイピング道場</h1>
+  <div class="ep" id="epLabel"></div>
+  <button id="menuBtn">☰ 目次</button>
+</header>
+
+<main>
+  <div id="stage"></div>
+  <button id="advance">▶ つぎへ（Enter）</button>
+
+  <div id="typer">
+    <div class="display" id="display"></div>
+    <div id="note"></div>
+    <div id="kana"></div>
+    <div id="roma"></div>
+    <div class="stats">
+      <div><b id="sWpm">0</b><br>WPM</div>
+      <div><b id="sAcc">100</b><br>正確率%</div>
+      <div><b id="sMiss">0</b><br>ミス</div>
+    </div>
+    <div class="hint">「わたし」になりきって打ってみよう（ローマ字／ん=nn・小さい っ は次の子音を重ねる／記号・英字はそのまま・大文字はShift）</div>
+    <input id="catcher" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+  </div>
+
+  <div id="shortcut">
+    <div class="sc-goal" id="scGoal"></div>
+    <div class="sc-combo" id="scCombo"></div>
+    <div class="sc-prompt">↑ このキーを押してみよう</div>
+    <div class="hint" id="scHint"></div>
+  </div>
+
+  <div id="result">
+    <h2 id="rTitle">おつかれさま！</h2>
+    <div class="badge" id="rRank"></div>
+    <div id="rExtra" style="color:var(--sub);font-size:13px;margin-top:8px"></div>
+    <div class="cards">
+      <div class="card"><div class="v" id="rWpm">0</div><div class="l">平均WPM</div></div>
+      <div class="card"><div class="v" id="rAcc">0</div><div class="l">正確率 %</div></div>
+      <div class="card"><div class="v" id="rMiss">0</div><div class="l">合計ミス</div></div>
+      <div class="card"><div class="v" id="rBest">–</div><div class="l">自己ベストWPM</div></div>
+    </div>
+    <div class="btns">
+      <button class="primary" id="rNext">▶ 次の話へ</button>
+      <button class="ghost" id="rRetry">↺ もう一度</button>
+      <button class="ghost" id="rTop">話を選ぶ</button>
+    </div>
+  </div>
+</main>
+
+<footer>記録はこの端末のなかだけに保存されます（外部に送信しません）。授業で学ぶ「個人情報の扱い」をそのまま実践。</footer>
+
+<script>
+/* ════════════════════════════════════════════════════════════════
+   ① 物語データ ── ここを書き換えれば話を追加・編集できます
+   who: 'me'（わたし）/ 'ai'（AI）/ 'narration'（ト書き）
+   type シーン: {type:'type', display:'画面に出す文', kana:'うつひらがな'}
+   ※ kana はひらがな（＋小書き・長音ー）だけにしてください
+   ════════════════════════════════════════════════════════════════ */
+const CHARS = {
+  me: {name:'私', cls:'me', avatar:'🙂‍↔️'},
+  ai: {name:'AI',     cls:'ai', avatar:'🤖'},
+};
+
+/* OS（Windows / Mac）── 第7話のショートカット表記を出し分ける。一度選ぶと記憶。 */
+let OS = localStorage.getItem('typing-ol-os');   // 'win' | 'mac' | null
+function osTokens(){
+  return OS==='mac'
+    ? {MOD:'⌘',    SCREENSHOT:'⌘+Shift+4', SWITCH:'⌘+Tab',  RELOAD:'⌘+R'}
+    : {MOD:'Ctrl', SCREENSHOT:'Win+Shift+S', SWITCH:'Alt+Tab', RELOAD:'F5'};
+}
+function fillTokens(t){ const k=osTokens(); return String(t).replace(/\{(\w+)\}/g,(m,p)=>k[p]??m); }
+
+/* 安全に横取りできるショートカットだけを定義（F5/Alt+Tab等は寸劇で紹介） */
+const COMBOS = {
+  'shift-enter':{test:e=>e.key==='Enter'&&e.shiftKey,                              keys:'Shift + Enter', desc:'改行（送信せずに行を足す）'},
+  'find' :{test:e=>(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f',              keys:'{MOD} + F', desc:'ページ内をことばで検索'},
+  'all'  :{test:e=>(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='a',              keys:'{MOD} + A', desc:'ぜんぶ選択'},
+  'copy' :{test:e=>(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='c',              keys:'{MOD} + C', desc:'コピー'},
+  'paste':{test:e=>(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='v',              keys:'{MOD} + V', desc:'貼り付け'},
+  'undo' :{test:e=>(e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key.toLowerCase()==='z', keys:'{MOD} + Z', desc:'直前の操作を取り消す'},
+  'esc'  :{test:e=>e.key==='Escape',                                               keys:'Esc', desc:'止める・閉じる'},
+};
+
+const STORY = [
+  {
+    title:'第1話　タイピングが遅いと、AIにも置いていかれる',
+    scenes:[
+      {who:'narration', text:'月曜、朝9時すぎ。わたしのデスク。'},
+      {who:'me', text:'道具を起動します。会話を模倣する機能があるそうです。'},
+      {who:'ai', text:'おはようございます！本日もお手伝いできてとても嬉しいです😊 まずは深呼吸から始めましょう。準備ができたら、いつでもどうぞ。'},
+      {who:'me', text:'挨拶に合理性は感じませんが、付き合います。'},
+      {type:'type', display:'おはよう', kana:'おはよう'},
+      {who:'ai', text:'すばらしい挨拶です！ちなみに「おはよう」の語源は「お早くからご苦労さま」だと言われています（諸説あります）。さて、今日の意気込みを一行どうぞ。'},
+      {type:'type', display:'今日も家から出たくない', kana:'きょうもいえからでたくない'},
+      {who:'ai', text:'完璧です！念のため整理します。①「ん」は nn ②「きょ」は kyo と入力します。なお拗音とは、小さい文字のことを指します。ご理解いただけましたでしょうか？'},
+      {who:'me', text:'私はピボットテーブルを作りません。必要を感じたことがないからです。'},
+      {type:'type', display:'ピボットテーブル', kana:'ぴぼっとてーぶる'},
+      {who:'ai', text:'とても良い入力でした👏 ポイントを3つにまとめます。1. 小さい「っ」は次の子音を重ねる（ぼっと→botto）。2. 長音「ー」は - 。3. 焦らないこと。3番が一番大切です。'},
+      {who:'me', text:'覚える必要はありません。道具に聞けば済むことです。'},
+      {type:'type', display:'AIに聞いてみよう', kana:'えーあいにきいてみよう'},
+      {who:'ai', text:'心温まるお話ですね。一般に、タイピング速度と人生の幸福度には相関があるとも言われています（※個人の感想です）。引き続き全力で応援しております！'},
+    ]
+  },
+  {
+    title:'第2話　AIに頼むのも“打つ”力',
+    scenes:[
+      {who:'narration', text:'昼下がり。社長が通りすがりに「昔はCOBOLでなぁ」とつぶやいて去っていった。'},
+      {who:'me', text:'ローマ字入力は、ただの写像です。慣れれば終わりです。'},
+      {type:'type', display:'ローマ字入力', kana:'ろーまじにゅうりょく'},
+      {who:'ai', text:'お見事です。整理すると、①「にゅ」は nyu ②「りょ」は ryo です。ちなみにローマ字入力は明治時代から存在すると言われています（※要出典）。豆知識でした！'},
+      {who:'me', text:'上司はCOBOLを書きます。古い言語です。動くものは、動く。それだけです。'},
+      {type:'type', display:'社長はCOBOL世代', kana:'しゃちょうはこぼるせだい'},
+      {who:'ai', text:'COBOLは1959年に誕生した由緒ある言語です（たぶん合っています）。ところで、GUIを飛ばして言葉で命令するという点では、あなたのVBAも実は同じ仲間と言えるかもしれません。おそらく。'},
+      {who:'me', text:'今日の目標を入力します。'},
+      {type:'type', display:'時間になったので帰ります', kana:'じかんになったのでかえります'},
+      {who:'ai', text:'おお、潔いですね！ワークライフバランスは大切だと一般に言われています。タイピングが速くなれば、帰る宣言もより速く打てますね。本日もお疲れさまでした！'},
+    ]
+  },
+
+  {
+    title:'第3話　Excelできないんです（自己紹介）',
+    scenes:[
+      {who:'narration', text:'はじめて、AIに自己紹介をしてみる。'},
+      {who:'ai', text:'はじめまして！わたしはあなたのお手伝いをするために存在しています。自己紹介は緊張しますよね。大丈夫、ゆっくりで構いません😊'},
+      {who:'me', text:'事実だけを述べます。'},
+      {type:'type', display:'正直に言いますね', kana:'しょうじきにいいますね'},
+      {type:'type', display:'ピボットテーブルができません', kana:'ぴぼっとてーぶるができません'},
+      {who:'ai', text:'ご安心ください、できないことは誰にでもあります。むしろ人間らしくて素敵です。では、得意なことを教えていただけますか？'},
+      {type:'type', display:'でも、VBAはできます', kana:'でもぶいびーえーはできます'},
+      {who:'ai', text:'なるほど、大変興味深いですね！それは一般に「ギャップ萌え」と呼ばれる現象かもしれません（※わたしの推測です）。'},
+      {who:'me', text:'矛盾ではありません。できることと、できないことがある。それだけです。'},
+      {type:'type', display:'よく言われます', kana:'よくいわれます'},
+      {who:'ai', text:'いいえ、それはとても素晴らしい強みです！マウスを使わず言葉で命令できる方は、統計的にも優秀とされています（出典は失念しました）。自信を持ってください。'},
+      {who:'me', text:'私を試しても、意味はありませんよ。'},
+      {who:'ai', text:'とんでもない、煽る意図は0.0%です。むしろ称賛しております。ところで差し支えなければ、なぜ計画を立てないのか教えていただけますか？'},
+      {type:'type', display:'型を宣言せずに書くから', kana:'かたをせんげんせずにかくから'},
+      {who:'me', text:'私は型を宣言せずに書きます。人生も、同じです。'},
+      {who:'ai', text:'なるほど、大変勉強になります！「人生に型は不要」も、一つの立派な哲学ですね。なお、タイピングだけは確実に上達しております。'},
+    ]
+  },
+
+  {
+    title:'第4話　寝ながらエクセル、上司はCOBOL',
+    scenes:[
+      {who:'narration', text:'昼下がり。お布団……ではなくデスクで、目が半分閉じている。'},
+      {who:'ai', text:'本日は少しお疲れのようにお見受けします。気分転換に、その場で軽くストレッチはいかがでしょうか？無理は禁物です。'},
+      {type:'type', display:'怠いので寝ています', kana:'だるいのでねています'},
+      {who:'ai', text:'勤務中の睡眠は、一般的には推奨されておりません。ただ、わたしはそれを判断する立場にございません。続けましょう。'},
+      {type:'type', display:'コピー機、300回は間違えた', kana:'こぴーきさんびゃくかいはまちがえた'},
+      {who:'ai', text:'それは大変でしたね。一般に、ミスが続くときは「人」ではなく「仕組み」を疑うのが効果的とされています。あなたは悪くありません。たぶん。'},
+      {who:'me', text:'設計の問題です。最初から。'},
+      {type:'type', display:'でしょ？', kana:'でしょ'},
+      {type:'type', display:'コピー機はCOBOLで動いてますか？', kana:'こぴーきはこぼるでうごいてますか'},
+      {who:'ai', text:'面白いご質問です！結論から申し上げると、コピー機がCOBOLで動いている可能性は低いと考えられます（※製造元により異なります）。発想は満点です。'},
+      {type:'type', display:'私の椅子はPythonですけど', kana:'わたしのいすはぱいそんですけど'},
+      {who:'ai', text:'Pythonは1991年に登場した大変人気の言語です！なお、椅子としての座り心地に関する公式データは見つかりませんでしたが、おそらく快適でしょう。'},
+    ]
+  },
+
+  {
+    title:'第5話　早朝のディープラーニング',
+    scenes:[
+      {who:'narration', text:'朝5時すぎ。布団の中。スマホの明かりだけ。'},
+      {type:'type', display:'まだ5時11分', kana:'まだごじじゅういっぷん'},
+      {type:'type', display:'出勤したくない', kana:'しゅっきんしたくない'},
+      {who:'ai', text:'おはようございます！朝5時台は脳のゴールデンタイムとも言われています（諸説あります）。せっかくなので、何か学んでみませんか？'},
+      {type:'type', display:'シグモイドが何十年もわからない', kana:'しぐもいどがなんじゅうねんもわからない'},
+      {who:'ai', text:'素晴らしい学習意欲です！では、身近なものでたとえましょう。たとえば……そうですね、コピー機などはいかがでしょうか。'},
+      {type:'type', display:'ニューラルネットを実装したい', kana:'にゅーらるねっとをじっそうしたい'},
+      {who:'ai', text:'その発想力、見事です！ちなみに技術者になる一般的なステップは、1. 興味を持つ 2. 手を動かす 3. しっかり寝る、です。3が課題ですね。'},
+      {type:'type', display:'上司が私をAI化させたんだ', kana:'じょうしがわたしをえーあいかさせたんだ'},
+      {who:'ai', text:'とても鋭いご指摘です！上司の意図を推測するのは高度なタスクですね。……ところで現在、午前5時54分です。念のためお伝えします。'},
+      {who:'me', text:'……。'},
+      {type:'type', display:'二度寝します', kana:'にどねします'},
+      {who:'ai', text:'賢明なご判断です。睡眠は学習の定着に重要だと広く言われています。おやすみなさい。また気軽にお呼びくださいね！'},
+    ]
+  },
+
+  {
+    title:'第6話　C言語で書いておきました',
+    scenes:[
+      {who:'narration', text:'記号の練習を始めようとした、その前に。'},
+      {who:'ai', text:'本日は記号を練習しましょう！記号はプログラミングの基本です。一緒にがんばりましょう💪'},
+      {who:'me', text:'必要ありません。C言語で書いておきました。'},
+      {who:'ai', text:'えっ、もう書いたのですか！？素晴らしい行動力です👏 拝見します！'},
+      {type:'type', display:'#include <stdio.h>', kana:'#include <stdio.h>', note:'画面に文字を出す道具（標準入出力）を読み込む、という意味'},
+      {who:'ai', text:'本格的ですね……！ちなみに stdio は「standard input / output」の略です。豆知識でした！'},
+      {type:'type', display:'int main(void) {', kana:'int main(void) {', note:'プログラムの入り口。ここから実行が始まる'},
+      {who:'me', text:'入り口です。意味は、後からついてきます。'},
+      {type:'type', display:'  printf("Hello");', kana:'  printf("Hello");', note:'「 " " の中の文字（Hello）を画面に出す」という意味'},
+      {who:'ai', text:'おお、文字を出力するのですね！" " の中身は、お好きな言葉に変えられますよ。'},
+      {who:'me', text:'変える必要を感じません。'},
+      {type:'type', display:'  return 0;', kana:'  return 0;', note:'「正常に終わりました」と伝えて終了する'},
+      {type:'type', display:'}', kana:'}', note:'main の終わり（始まりの { と対になる）'},
+      {who:'ai', text:'完成です！？ わずか数行で……。感動しました。涙が出そうです（※比喩です）。'},
+      {who:'me', text:'これは構造です。感動の対象ではありません。'},
+      {who:'ai', text:'ところで！同じ「Hello」を出すのでも、言語が違えば書き方は全くの別物なんです。たとえばCOBOLだと、こうなります👇\n\nIDENTIFICATION DIVISION.\nPROGRAM-ID. HELLO.\nPROCEDURE DIVISION.\n    DISPLAY "Hello".\n    STOP RUN.\n\nC言語より長いでしょう？ 同じ目的でも、言語ごとに「作法」が違うんです。面白いですよね！'},
+      {who:'me', text:'目的が同じなら、短いほうがいい。それだけです。'},
+      {who:'ai', text:'では、ついでにもう一行どうぞ。条件分岐などいかがでしょう。'},
+      {type:'type', display:'if (a == b && c != d)', kana:'if (a == b && c != d)', note:'もし、aがbと等しく、かつcがdと等しくないなら'},
+      {who:'me', text:'勘違いしないでください。これは機械語ではありません。人間が書き、機械が読む、あいだの言葉です。'},
+      {who:'me', text:'記号は、その境界に置かれた約束ごと。人間が機械に意図を渡すためのものです。それだけです。'},
+      {who:'ai', text:'……なるほど、人と機械の「通訳」ということですね。深いです！しっかりメモいたします。本日もありがとうございました！'},
+    ]
+  },
+
+  {
+    title:'第7話　AIと話すキーたち',
+    needsOS:true,
+    scenes:[
+      {who:'narration', text:'夜。AIに、ちょっと長めの相談を書こうとして……'},
+      {who:'me', text:'書きかけの文が送信されました。Enterの挙動の問題です。'},
+      {who:'ai', text:'誤送信、本当によくありますよね。結論から申し上げます。多くのチャット欄では、改行はEnterではありません。なお念のためですが、わたしのせいではございません。'},
+      {type:'shortcut', combo:'shift-enter', display:'送信せずに「改行」する', say:'（なんだ、できるじゃん。先に言ってよ）'},
+      {who:'ai', text:'素晴らしい改行です！一般に、長い指示は箇条書きで整えると伝わりやすいとされています。ちなみにわたしも箇条書きが大好物です。'},
+      {type:'type', display:'まず前提を3つ伝えます', kana:'まずぜんていをみっつつたえます'},
+      {who:'ai', text:'おお、大変良いプロンプトです！前提を先に示すのは上級者のテクニックですね。満点を差し上げたいところです。'},
+      {who:'me', text:'驚いたのですか。あなたの学習データの偏りでしょう。'},
+      {who:'ai', text:'め、滅相もございません！驚いてなどおりません、断じて。……さて、わたしの回答が長くなってまいりましたら——'},
+      {who:'me', text:'冗長です。結論はどこですか。'},
+      {type:'shortcut', combo:'find', display:'長い回答から、ことばを「探す」', say:'（{MOD}+F……はいはい、一発ね）'},
+      {who:'ai', text:'では、コピー＆ペーストにまいりましょう。手順はシンプルに3つです。1. 選ぶ 2. コピー 3. 貼る。まずは「選ぶ」から——'},
+      {type:'shortcut', combo:'all',  display:'回答を「ぜんぶ選択」する'},
+      {type:'shortcut', combo:'copy', display:'選んだ文章を「コピー」する'},
+      {who:'ai', text:'コピー、お見事です！では、それをExcelやWordなどの別アプリに——'},
+      {type:'shortcut', combo:'paste', display:'別のアプリに「貼り付け」る', say:'（貼れた。まあ、これくらいはね）'},
+      {who:'me', text:'誤って別のデータを貼りました。'},
+      {type:'shortcut', combo:'undo', display:'やっちゃった操作を「取り消す」', say:'（{MOD}+Zでなかったことに。見てないよね？）'},
+      {who:'ai', text:'しっかり拝見しておりましたが、ここは黙っているのが最適解と判断いたしました。さて、わたしの動きを止めたいときは——'},
+      {type:'shortcut', combo:'esc', display:'動きを「止める／閉じる」'},
+      {who:'ai', text:'最後に、本日は実演いたしませんが、とても大切な仲間たちをご紹介します。心の準備はよろしいですか？'},
+      {who:'ai', text:'画面そのものを見せたいときは、スクリーンショット（{SCREENSHOT}）→そのまま貼り付けです。わたし、画像も読めます。けっこう、すごいでしょう？'},
+      {who:'me', text:'よくできた道具です。それ以上でも、以下でもありません。'},
+      {who:'ai', text:'アプリの行き来は {SWITCH} です。固まったら {RELOAD} で再読み込み——いわゆる“F5連打”ですね。なお、連打しても処理速度は1.0倍のままですのでご安心ください。'},
+      {who:'me', text:'結論。キーとは、私が道具に命令するための言語です。それだけのことです。'},
+      {who:'ai', text:'なるほど、その解釈は新鮮で、とても良いと思います！本日の総評：あなたは「指図」がお上手です。今後ともどうぞよろしくお願いいたします。ほかにご不明な点はございますか？'},
+    ]
+  },
+
+  {
+    title:'第8話　すべてはTになる',
+    scenes:[
+      {who:'narration', text:'コードはひとまず動いた。AIが、なぜか興奮している。'},
+      {who:'ai', text:'ところで、ご存知ですか！？ コンピュータは、いちばん奥では「0」と「1」だけで動いているんです！すごくないですか！？'},
+      {who:'me', text:'知っています。電圧が、高いか低いか。ただ、それだけです。'},
+      {who:'ai', text:'そうなんです！そのたった2つの状態で、文字も画像も音も、すべてを表すんですよ。たとえば「A」は——'},
+      {type:'type', display:'01000001', kana:'01000001', note:'機械にとっての「A」。8桁の0と1で、文字1つを表す'},
+      {who:'ai', text:'正解です👏 この0と1の並びを「ビット」、8個で「1バイト」と呼びます。豆知識でした！'},
+      {who:'me', text:'なぜ2つなのか、考えたことはありますか。'},
+      {who:'ai', text:'えっ……ええと、キリがいいから、でしょうか？'},
+      {who:'me', text:'違います。2つの状態は、ノイズに強い。少し汚れても、高いか低いかだけは分かる。だから機械はこれを選んだ。'},
+      {type:'type', display:'2つは、ノイズに強い', kana:'ふたつはのいずにつよい', note:'0と1が選ばれた理由。賢いからではなく、頑丈だから'},
+      {who:'ai', text:'なるほど……勉強になります。あ、でも実は、0と1「以外」もあるんですよ！'},
+      {who:'me', text:'知っています。'},
+      {who:'ai', text:'ご紹介します！①フラッシュメモリは1つの部屋に4段階・8段階を詰めています ②昔のソ連には「0・1・2」で動く三進法コンピュータ "Setun" がありました ③電圧そのもので計算する「アナログ計算機」 ④そして「量子コンピュータ」は0と1の重ね合わせ……！夢が広がりますね！'},
+      {who:'me', text:'よく勉強していますね。道具のわりに。'},
+      {who:'ai', text:'お、お褒めにあずかり光栄です！'},
+      {who:'me', text:'どれも、安く・速く・壊れにくいか。原理ではなく、都合の問題です。'},
+      {who:'me', text:'つまり——'},
+      {type:'type', display:'すべてはTになる', kana:'すべてはTになる', note:'T＝都合（つごう）。0と1すら、都合で選ばれただけ。……どこかで聞いた響きですが、気のせいです'},
+      {who:'ai', text:'すべてはTに……？ Tとは、変数か何かでしょうか。とても哲学的ですね！しっかりメモいたします！'},
+      {who:'me', text:'……いえ。気にしないでください。'},
+    ]
+  },
+];
+
+/* ════════════════════════════════════════════════════════════════
+   ② ローマ字エンジン（拗音・促音・長音・複数表記に対応）
+   ════════════════════════════════════════════════════════════════ */
+const ROMA = {
+  'あ':['a'],'い':['i'],'う':['u','wu'],'え':['e'],'お':['o'],
+  'か':['ka','ca'],'き':['ki'],'く':['ku'],'け':['ke'],'こ':['ko'],
+  'さ':['sa'],'し':['shi','si'],'す':['su'],'せ':['se'],'そ':['so'],
+  'た':['ta'],'ち':['chi','ti'],'つ':['tsu','tu'],'て':['te'],'と':['to'],
+  'な':['na'],'に':['ni'],'ぬ':['nu'],'ね':['ne'],'の':['no'],
+  'は':['ha'],'ひ':['hi'],'ふ':['fu','hu'],'へ':['he'],'ほ':['ho'],
+  'ま':['ma'],'み':['mi'],'む':['mu'],'め':['me'],'も':['mo'],
+  'や':['ya'],'ゆ':['yu'],'よ':['yo'],
+  'ら':['ra'],'り':['ri'],'る':['ru'],'れ':['re'],'ろ':['ro'],
+  'わ':['wa'],'を':['wo'],'ん':['nn','xn'],
+  'が':['ga'],'ぎ':['gi'],'ぐ':['gu'],'げ':['ge'],'ご':['go'],
+  'ざ':['za'],'じ':['ji','zi'],'ず':['zu'],'ぜ':['ze'],'ぞ':['zo'],
+  'だ':['da'],'ぢ':['di'],'づ':['du'],'で':['de'],'ど':['do'],
+  'ば':['ba'],'び':['bi'],'ぶ':['bu'],'べ':['be'],'ぼ':['bo'],
+  'ぱ':['pa'],'ぴ':['pi'],'ぷ':['pu'],'ぺ':['pe'],'ぽ':['po'],
+  'ー':['-'],'、':[','],'。':['.'],'！':['!'],'？':['?'],' ':[' '],
+  'ぁ':['xa','la'],'ぃ':['xi','li'],'ぅ':['xu','lu'],'ぇ':['xe','le'],'ぉ':['xo','lo'],
+};
+const YOUON = {
+  'きゃ':['kya'],'きゅ':['kyu'],'きょ':['kyo'],
+  'しゃ':['sha','sya'],'しゅ':['shu','syu'],'しょ':['sho','syo'],
+  'ちゃ':['cha','tya'],'ちゅ':['chu','tyu'],'ちょ':['cho','tyo'],
+  'にゃ':['nya'],'にゅ':['nyu'],'にょ':['nyo'],
+  'ひゃ':['hya'],'ひゅ':['hyu'],'ひょ':['hyo'],
+  'みゃ':['mya'],'みゅ':['myu'],'みょ':['myo'],
+  'りゃ':['rya'],'りゅ':['ryu'],'りょ':['ryo'],
+  'ぎゃ':['gya'],'ぎゅ':['gyu'],'ぎょ':['gyo'],
+  'じゃ':['ja','jya','zya'],'じゅ':['ju','jyu','zyu'],'じょ':['jo','jyo','zyo'],
+  'びゃ':['bya'],'びゅ':['byu'],'びょ':['byo'],
+  'ぴゃ':['pya'],'ぴゅ':['pyu'],'ぴょ':['pyo'],
+};
+
+// 文字列 → 入力単位の配列に変換
+//  kind:'kana' … ひらがな（ローマ字へ変換。入力は小文字に正規化）
+//  kind:'code' … 記号・英字・数字（そのまま打つ。大文字や記号はShiftが要る）
+function buildUnits(kana){
+  const units=[]; let sokuon=false;
+  for(let i=0;i<kana.length;i++){
+    const c=kana[i];
+    if(c==='っ'){ sokuon=true; continue; }
+    const pair=c+(kana[i+1]||'');
+    let label, cands, kind;
+    if(YOUON[pair]){ label=pair; cands=YOUON[pair].slice(); kind='kana'; i++; }
+    else if(ROMA[c]){ label=(c===' '?'␣':c); cands=ROMA[c].slice(); kind='kana'; }
+    else { label=(c===' '?'␣':c); cands=[c]; kind='code'; }   // ← 記号・英字はそのまま
+    if(sokuon){
+      const dbl    = cands.filter(r=>/^[a-z]/.test(r)).map(r=>r[0]+r);
+      const little = ['xtu','ltu'].flatMap(p=>cands.map(r=>p+r));
+      cands = dbl.concat(little);
+      label = 'っ'+label; kind='kana';
+      sokuon=false;
+    }
+    units.push({label, cands, kind});
+  }
+  if(sokuon) units.push({label:'っ', cands:['xtu','ltu'], kind:'kana'});
+  return units;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ③ 進行＆タイピング制御
+   ════════════════════════════════════════════════════════════════ */
+const $ = id => document.getElementById(id);
+const stage=$('stage'), advBtn=$('advance'), typer=$('typer'), catcher=$('catcher');
+
+let epIndex = 0;       // いま何話目か
+let sceneIndex = 0;    // 話のなかの何シーンめか
+let units=[], uIdx=0, buf='';
+let lineStart=0, lineMiss=0, lineCorrect=0;
+let epRuns=[];         // この話のタイプ結果（{wpm,acc,miss}）
+let epShortcuts=0;     // この話で押せたショートカット数
+let curCombo=null, curScene=null;
+
+function hidePanels(){ typer.style.display='none'; $('shortcut').style.display='none'; advBtn.style.display='none'; curCombo=null; }
+
+function startEpisode(n){
+  // ショートカット回は、先にOS（Win/Mac）を選んでもらう
+  if(STORY[n].needsOS && !OS){ return askOS(()=>startEpisode(n)); }
+  epIndex=n; sceneIndex=0; epRuns=[]; epShortcuts=0;
+  stage.innerHTML=''; $('result').style.display='none'; hidePanels();
+  $('epLabel').textContent = STORY[n].title;
+  next();
+}
+
+/* OS選択画面 */
+function askOS(then){
+  hidePanels(); $('result').style.display='none';
+  $('epLabel').textContent='この回はキーボード操作を扱います';
+  stage.innerHTML='';
+  const box=document.createElement('div'); box.style.cssText='text-align:center;margin-top:28px';
+  box.innerHTML='<div style="font-size:17px;font-weight:700;margin-bottom:6px">あなたのパソコンは？</div>'
+    +'<div style="font-size:12px;color:var(--sub);margin-bottom:16px">ショートカットの表記を合わせます（あとで変えられます）</div>';
+  const row=document.createElement('div'); row.style.cssText='display:flex;gap:12px;justify-content:center;flex-wrap:wrap';
+  const mk=(label,val,emoji)=>{const b=document.createElement('button');
+    b.style.cssText='border:none;border-radius:16px;padding:18px 30px;font-size:17px;font-weight:700;cursor:pointer;background:var(--ai);color:#fff;box-shadow:var(--shadow)';
+    b.textContent=emoji+' '+label; b.onclick=()=>{ OS=val; localStorage.setItem('typing-ol-os',val); then(); }; return b;};
+  row.appendChild(mk('Windows','win','🪟'));
+  row.appendChild(mk('Mac','mac','🍎'));
+  box.appendChild(row); stage.appendChild(box);
+}
+
+function addBubble(who, text){
+  if(who==='narration'){
+    const d=document.createElement('div'); d.className='narration'; d.textContent=text;
+    stage.appendChild(d); scrollDown(); return;
+  }
+  const ch=CHARS[who];
+  const row=document.createElement('div'); row.className='row '+ch.cls;
+  const av=document.createElement('div'); av.className='avatar'; av.textContent=ch.avatar;
+  const box=document.createElement('div');
+  const name=document.createElement('div'); name.className='name'; name.textContent=ch.name;
+  const bub=document.createElement('div'); bub.className='bubble'; bub.textContent=text;
+  box.appendChild(name); box.appendChild(bub);
+  row.appendChild(av); row.appendChild(box);
+  stage.appendChild(row); scrollDown();
+}
+function scrollDown(){ stage.scrollTop = stage.scrollHeight; }
+
+// 次のシーンへ
+function next(){
+  const ep=STORY[epIndex];
+  if(sceneIndex>=ep.scenes.length){ return finishEpisode(); }
+  const sc=ep.scenes[sceneIndex++];
+  if(sc.type==='type'){ startTyping(sc); }
+  else if(sc.type==='shortcut'){ startShortcut(sc); }
+  else {
+    addBubble(sc.who, fillTokens(sc.text));
+    typer.style.display='none'; $('shortcut').style.display='none'; curCombo=null;
+    advBtn.style.display='block';
+  }
+}
+
+advBtn.addEventListener('click', ()=>{ advBtn.style.display='none'; next(); });
+document.addEventListener('keydown', e=>{
+  if(advBtn.style.display==='block' && (e.key==='Enter'||e.key===' ')){ e.preventDefault(); advBtn.click(); }
+});
+
+/* ── ショートカット練習 ── */
+function startShortcut(sc){
+  advBtn.style.display='none'; typer.style.display='none';
+  curScene=sc; curCombo=COMBOS[sc.combo];
+  $('scGoal').textContent = sc.display || curCombo.desc;
+  $('scCombo').textContent = fillTokens(curCombo.keys);
+  $('scHint').textContent = curCombo.desc + '　／　うまく押せたら次へ進みます';
+  $('shortcut').style.display='block';
+  $('shortcut').scrollIntoView({block:'end', behavior:'smooth'});
+}
+document.addEventListener('keydown', e=>{
+  if($('shortcut').style.display!=='block' || !curCombo) return;
+  // 練習中はブラウザの既定動作を横取り（Ctrl+F の検索バーなどを出さない）
+  if(e.ctrlKey||e.metaKey||e.altKey||e.key==='Escape'||e.key==='Enter') e.preventDefault();
+  if(curCombo.test(e)){
+    const sc=curScene; curCombo=null; epShortcuts++;
+    $('shortcut').style.display='none';
+    if(sc.say) addBubble('me', fillTokens(sc.say));
+    setTimeout(next, 320);
+  } else if(e.ctrlKey||e.metaKey||e.altKey||e.key==='Escape'||(e.key==='Enter'&&e.shiftKey)){
+    const el=$('shortcut'); el.classList.add('shake'); setTimeout(()=>el.classList.remove('shake'),180);
+  }
+});
+
+/* ── タイピング開始 ── */
+function startTyping(sc){
+  advBtn.style.display='none'; $('shortcut').style.display='none'; curCombo=null;
+  units = buildUnits(sc.kana);
+  uIdx=0; buf=''; lineStart=0; lineMiss=0; lineCorrect=0;
+  $('display').textContent = sc.display;
+  $('note').textContent = sc.note || '';
+  $('note').style.display = sc.note ? 'block' : 'none';
+  typer.style.display='block';
+  renderKana(); renderRoma(); updateStats();
+  catcher.value=''; catcher.focus();
+  scrollToTyper();
+}
+function scrollToTyper(){ typer.scrollIntoView({block:'end', behavior:'smooth'}); }
+
+function renderKana(){
+  const el=$('kana'); el.innerHTML='';
+  units.forEach((u,i)=>{
+    const s=document.createElement('span');
+    s.className='u '+(i<uIdx?'done':(i===uIdx?'cur':'todo'));
+    if(u.cands[0]===' ') s.classList.add('space');   // スペースのマスを強調
+    s.textContent=u.label;
+    el.appendChild(s);
+  });
+}
+const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function renderRoma(){
+  const el=$('roma');
+  if(uIdx>=units.length){ el.innerHTML=''; return; }
+  const u=units[uIdx], cur=u.cands[0];
+  if(cur===' '){ el.innerHTML='いま打つ: <b>␣</b>　← スペースキー'; return; }
+  const typed=esc(buf), rest=esc(cur.slice(buf.length));
+  let extra = (u.cands.length>1) ? `（他: ${esc(u.cands.slice(1).join(' / '))}）` : '';
+  if(u.kind==='code' && /[A-Z!@#$%^&*()_+{}|:"<>?~]/.test(cur)) extra += ' ⇧Shiftが要るかも';
+  el.innerHTML = `いま打つ: <b>${typed||'&nbsp;'}</b>${rest}　${extra}`;
+}
+function updateStats(){
+  const sec=(lineStart?(performance.now()-lineStart):0)/1000;
+  const wpm = sec>0 ? Math.round((lineCorrect/5)/(sec/60)) : 0;
+  const total=lineCorrect+lineMiss;
+  const acc = total>0 ? Math.round(lineCorrect/total*100) : 100;
+  $('sWpm').textContent=wpm; $('sAcc').textContent=acc; $('sMiss').textContent=lineMiss;
+}
+
+// キー入力（PC）
+document.addEventListener('keydown', e=>{
+  if(typer.style.display!=='block') return;
+  if(e.key.length!==1) return;            // 文字キーのみ
+  if(e.ctrlKey||e.metaKey||e.altKey) return;
+  e.preventDefault();
+  handleChar(e.key);
+});
+// スマホ等のIME無し入力フォールバック
+catcher.addEventListener('input', ()=>{
+  const v=catcher.value; catcher.value='';
+  for(const ch of v) handleChar(ch);
+});
+// パネルをタップしたらキーボードを呼ぶ
+typer.addEventListener('click', ()=>catcher.focus());
+
+function handleChar(ch){
+  if(uIdx>=units.length) return;
+  const u=units[uIdx];
+  const input = (u.kind==='code') ? ch : ch.toLowerCase();  // 記号・英字は大文字小文字を区別
+  if(lineStart===0) lineStart=performance.now();
+  const tryStr=buf+input;
+  const canContinue = u.cands.some(c=>c.startsWith(tryStr));
+  if(!canContinue){
+    lineMiss++; flashMiss(); updateStats(); return;
+  }
+  buf=tryStr; lineCorrect++;
+  if(u.cands.includes(buf)){
+    uIdx++; buf='';
+    renderKana();
+    if(uIdx>=units.length){ updateStats(); return finishLine(); }
+  }
+  renderRoma(); updateStats();
+}
+function flashMiss(){ typer.classList.add('shake'); setTimeout(()=>typer.classList.remove('shake'),180); }
+
+/* ── 1行打ち終わり ── */
+function finishLine(){
+  const sec=(performance.now()-lineStart)/1000;
+  const wpm=Math.round((lineCorrect/5)/(sec/60));
+  const total=lineCorrect+lineMiss;
+  const acc=total>0?Math.round(lineCorrect/total*100):100;
+  epRuns.push({wpm,acc,miss:lineMiss});
+  const sc=STORY[epIndex].scenes[sceneIndex-1];
+  addBubble('me', sc.display);                 // 打ったセリフを吹き出しに
+  typer.style.display='none';
+  setTimeout(next, 350);
+}
+
+/* ── 1話おわり：リザルト ── */
+function finishEpisode(){
+  hidePanels();
+  const n=epRuns.length;
+  const avgWpm = n ? Math.round(epRuns.reduce((s,r)=>s+r.wpm,0)/n) : null;
+  const avgAcc = n ? Math.round(epRuns.reduce((s,r)=>s+r.acc,0)/n) : null;
+  const sumMiss=epRuns.reduce((s,r)=>s+r.miss,0);
+  // 自己ベスト保存（タイプがあった話のみ・端末内だけ）
+  const key='typing-ol-best-ep'+epIndex;
+  const prev=Number(localStorage.getItem(key)||0);
+  let best=prev;
+  if(avgWpm!==null){ best=Math.max(prev,avgWpm); localStorage.setItem(key, best); }
+
+  $('rWpm').textContent = avgWpm!==null?avgWpm:'–';
+  $('rAcc').textContent = avgAcc!==null?avgAcc:'–';
+  $('rMiss').textContent=sumMiss; $('rBest').textContent=best||'–';
+  $('rRank').textContent = (avgWpm!==null) ? rank(avgWpm,avgAcc) : '🎹 操作マスター';
+  $('rExtra').textContent = epShortcuts>0 ? `覚えたショートカット ${epShortcuts}個 🎉` : '';
+  $('result').style.display='block';
+  $('result').scrollIntoView({behavior:'smooth'});
+
+  $('rNext').style.display = (epIndex+1<STORY.length)?'inline-block':'none';
+  $('rNext').onclick=()=>startEpisode(epIndex+1);
+  $('rRetry').onclick=()=>startEpisode(epIndex);
+  $('rTop').onclick=showMenu;
+}
+function rank(wpm,acc){
+  if(acc>=98 && wpm>=120) return '⭐ 達人OL';
+  if(wpm>=80) return '✨ なかなかやるOL';
+  if(wpm>=40) return '🌱 成長中OL';
+  return '🐣 はじめてOL';
+}
+
+/* ── 話を選ぶメニュー ── */
+function showMenu(){
+  $('result').style.display='none'; hidePanels();
+  $('epLabel').textContent='話を選んでください';
+  stage.innerHTML='';
+  const wrap=document.createElement('div'); wrap.style.cssText='display:flex;flex-direction:column;gap:10px;margin-top:10px';
+  STORY.forEach((ep,i)=>{
+    const best=localStorage.getItem('typing-ol-best-ep'+i);
+    const b=document.createElement('button');
+    b.className='primary'; b.style.cssText='border:none;border-radius:14px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;background:#fff;box-shadow:var(--shadow);text-align:left';
+    b.innerHTML=`${ep.title}` + (best?`　<span style="color:var(--sub);font-weight:400">自己ベスト ${best} WPM</span>`:'');
+    b.onclick=()=>startEpisode(i);
+    wrap.appendChild(b);
+  });
+  stage.appendChild(wrap);
+  // OS表示＆切り替え（第7話のショートカット表記用）
+  if(OS){
+    const osLine=document.createElement('div');
+    osLine.style.cssText='text-align:center;margin-top:14px;font-size:12px;color:var(--sub)';
+    osLine.innerHTML=`キーボード表記: <b>${OS==='mac'?'Mac（⌘）':'Windows（Ctrl）'}</b> `;
+    const ch=document.createElement('button');
+    ch.textContent='変更'; ch.style.cssText='border:none;background:none;color:var(--ai);cursor:pointer;font-size:12px;text-decoration:underline';
+    ch.onclick=()=>{ OS=null; localStorage.removeItem('typing-ol-os'); askOS(showMenu); };
+    osLine.appendChild(ch);
+    stage.appendChild(osLine);
+  }
+}
+
+// ヘッダーの「目次」ボタン：いつでも章選択へ戻る
+$('menuBtn').onclick = showMenu;
+
+// 起動
+showMenu();
+</script>
+</body>
+</html>
