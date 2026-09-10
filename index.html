@@ -63,6 +63,18 @@
         background:#f3f7e6;border:1px solid #d7e3b6;border-radius:10px;
         padding:8px 12px;margin:4px auto 12px;max-width:92%;line-height:1.5}
   #note::before{content:"💬 意味：";font-weight:700;color:#7a8a4a}
+  /* ごほうび演出 */
+  #reaction{position:absolute;left:50%;top:8px;transform:translateX(-50%);
+            background:#fff;border:2px solid var(--me);color:#c2407a;font-weight:800;
+            border-radius:999px;padding:7px 18px;font-size:17px;box-shadow:var(--shadow);
+            white-space:nowrap;opacity:0;pointer-events:none;z-index:5}
+  #reaction.show{animation:reactionPop .85s ease}
+  @keyframes reactionPop{
+    0%{opacity:0;transform:translateX(-50%) translateY(10px) scale(.7)}
+    18%{opacity:1;transform:translateX(-50%) translateY(-4px) scale(1.15)}
+    68%{opacity:1;transform:translateX(-50%) translateY(-8px) scale(1)}
+    100%{opacity:0;transform:translateX(-50%) translateY(-20px) scale(1)}}
+  #combo{display:none;text-align:center;font-size:13px;font-weight:800;color:#e08600;margin:0 0 6px}
   #kana{font-size:26px;text-align:center;letter-spacing:.02em;line-height:1.7;margin-bottom:6px}
   #kana .u{padding:0 1px;border-radius:6px}
   #kana .done{color:var(--ok)}
@@ -117,7 +129,9 @@
   <button id="advance">▶ つぎへ（Enter）</button>
 
   <div id="typer">
+    <div id="reaction"></div>
     <div class="display" id="display"></div>
+    <div id="combo"></div>
     <div id="note"></div>
     <div id="kana"></div>
     <div id="roma"></div>
@@ -200,7 +214,7 @@ const STORY = [
       {type:'type', display:'おはよう', kana:'おはよう'},
       {who:'ai', text:'すばらしい挨拶です！ちなみに「おはよう」の語源は「お早くからご苦労さま」だと言われています（諸説あります）。さて、今日の意気込みを一行どうぞ。'},
       {type:'type', display:'今日も家から出たくない', kana:'きょうもいえからでたくない'},
-      {who:'ai', text:'完璧です！念のため整理します。①「ん」は nn ②「きょ」は kyo と入力します。なお拗音とは、小さい文字のことを指します。ご理解いただけましたでしょうか？'},
+      {who:'ai', text:'完璧です！念のため整理します。「きょ」は kyo と入力します。拗音（小さい「ゃゅょ」が入る音）は、3文字でまとめて打つのがコツです。ご理解いただけましたでしょうか？'},
       {who:'me', text:'私はピボットテーブルを作りません。必要を感じたことがないからです。'},
       {type:'type', display:'ピボットテーブル', kana:'ぴぼっとてーぶる'},
       {who:'ai', text:'とても良い入力でした👏 ポイントを3つにまとめます。1. 小さい「っ」は次の子音を重ねる（ぼっと→botto）。2. 長音「ー」は - 。3. 焦らないこと。3番が一番大切です。'},
@@ -446,6 +460,7 @@ let units=[], uIdx=0, buf='';
 let lineStart=0, lineMiss=0, lineCorrect=0;
 let epRuns=[];         // この話のタイプ結果（{wpm,acc,miss}）
 let epShortcuts=0;     // この話で押せたショートカット数
+let combo=0;           // 連続ノーミス数（話内で継続・ミスでリセット）
 let curCombo=null, curScene=null;
 
 function hidePanels(){ typer.style.display='none'; $('shortcut').style.display='none'; advBtn.style.display='none'; curCombo=null; }
@@ -453,7 +468,7 @@ function hidePanels(){ typer.style.display='none'; $('shortcut').style.display='
 function startEpisode(n){
   // ショートカット回は、先にOS（Win/Mac）を選んでもらう
   if(STORY[n].needsOS && !OS){ return askOS(()=>startEpisode(n)); }
-  epIndex=n; sceneIndex=0; epRuns=[]; epShortcuts=0;
+  epIndex=n; sceneIndex=0; epRuns=[]; epShortcuts=0; combo=0;
   stage.innerHTML=''; $('result').style.display='none'; hidePanels();
   $('epLabel').textContent = STORY[n].title;
   next();
@@ -546,8 +561,18 @@ function startTyping(sc){
   $('note').style.display = sc.note ? 'block' : 'none';
   typer.style.display='block';
   renderKana(); renderRoma(); updateStats();
+  $('reaction').classList.remove('show'); updateComboBadge();
   catcher.value=''; catcher.focus();
   scrollToTyper();
+}
+function showReaction(text){
+  const el=$('reaction'); el.textContent=text;
+  el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+}
+function updateComboBadge(){
+  const el=$('combo');
+  if(combo>=2){ el.textContent='🔥 '+combo+' コンボ中！'; el.style.display='block'; }
+  else el.style.display='none';
 }
 function scrollToTyper(){ typer.scrollIntoView({block:'end', behavior:'smooth'}); }
 
@@ -623,10 +648,17 @@ function finishLine(){
   const total=lineCorrect+lineMiss;
   const acc=total>0?Math.round(lineCorrect/total*100):100;
   epRuns.push({wpm,acc,miss:lineMiss});
+  // ── ごほうび演出 ──
+  const noMiss = lineMiss===0;
+  combo = noMiss ? combo+1 : 0;
+  const tier = wpm>=70 ? '⚡爆速！' : wpm>=40 ? '⚡速い！' : '👍クリア！';
+  const parts = noMiss ? ['✨ノーミス', tier] : [tier];
+  if(combo>=2) parts.push('🔥'+combo+'コンボ');
+  showReaction(parts.join('　'));
+  updateComboBadge();
   const sc=STORY[epIndex].scenes[sceneIndex-1];
   addBubble('me', sc.display);                 // 打ったセリフを吹き出しに
-  typer.style.display='none';
-  setTimeout(next, 350);
+  setTimeout(()=>{ typer.style.display='none'; next(); }, 820);  // 演出を見せてから次へ
 }
 
 /* ── 1話おわり：リザルト ── */
